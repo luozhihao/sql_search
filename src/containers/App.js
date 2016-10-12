@@ -58,6 +58,10 @@ class App extends Component {
         console.log(editor.getValue())
     }
 
+    clear = () => {
+        editor.setValue('', -1)
+    }
+
     // 获取用户名
     getUser = () => {
         return fetch('/userinfo/', {
@@ -89,28 +93,32 @@ class App extends Component {
 
         return(
             <div className="main">
-                <Card 
+                <Card
                     title="计费数据库查询工具" 
-                    extra={<a href="#">退出</a>} 
+                    extra={<a href="#" onClick={this.logout}>退出</a>} 
                     style={{ width: '70%', margin: '0 auto' }}
                 >
                     <Form inline className="search-box">
                         <FormItem
-                           label="下拉框"
+                           label="分站"
                         >
                             <Select
                                 style={{ width: 200 }}
                                 placeholder="请选择"
                             >   
-                                <Option value="1">选项一</Option>
-                                <Option value="2">选项二</Option>
-                                <Option value="3">选项三</Option>
+                                <Option value="1">分站名一</Option>
+                                <Option value="2">分站名二</Option>
+                                <Option value="3">分站名三</Option>
                             </Select>
                         </FormItem>
-                        <Button type="primary" size="large" icon="search" loading={loading} onClick={this.submit}>查询</Button>
                     </Form>
                     <div id="editor"></div>
-                    <Table className="table-box" columns={columns}
+                    <div className="text-center mt20">
+                        <Button type="primary" size="large" icon="search" loading={loading} onClick={this.submit}>查询</Button>
+                        &nbsp;&nbsp;
+                        <Button type="default" size="large" icon="reload" onClick={this.clear}>清空</Button>
+                    </div>
+                    <Table className="mt20" columns={columns}
                         dataSource={this.state.data}
                         pagination={false}
                         loading={this.state.loading}
