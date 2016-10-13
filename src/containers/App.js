@@ -1,6 +1,6 @@
 import React, { Component } from 'react'
 import { connect } from 'react-redux'
-import { Form, Select, Button, Card, Table, message } from 'antd'
+import { Form, Select, Button, Card, Table, message, notification } from 'antd'
 
 import 'fetch-polyfill'
 import 'whatwg-fetch'
@@ -10,7 +10,8 @@ let editor
 
 const FormItem = Form.Item
 const Option = Select.Option
-const columns = [{
+
+const initHeader = [{
     title: '表名一',
     dataIndex: 'name',
 }, {
@@ -19,7 +20,7 @@ const columns = [{
 }, {
     title: '表名三',
     dataIndex: 'email',
-}];
+}]
 
 class App extends Component {
     constructor(props) {
@@ -27,24 +28,16 @@ class App extends Component {
         this.state = {
             username: '',
             loading: false,
-            data: [
-                /*{name: 'luozh', gender: 'man', email: '121213'},
-                {name: 'luozh', gender: 'man', email: '121213'},
-                {name: 'luozh', gender: 'man', email: '121213'},
-                {name: 'luozh', gender: 'man', email: '121213'},
-                {name: 'luozh', gender: 'man', email: '121213'},
-                {name: 'luozh', gender: 'man', email: '121213'},
-                {name: 'luozh', gender: 'man', email: '121213'},
-                {name: 'luozh', gender: 'man', email: '121213'},
-                {name: 'luozh', gender: 'man', email: '121213'},
-                {name: 'luozh', gender: 'man', email: '121213'},*/
-            ]
+            stations: [],
+            columns: initHeader,
+            data: [],
+            pagination: {
+                pageSize: 2
+            }
         }
     }
 
     componentDidMount() {
-        this.getUser()
-
         let Mode = ace.require("ace/mode/sql").Mode
 
         editor = ace.edit("editor")
@@ -52,28 +45,119 @@ class App extends Component {
         editor.setFontSize(16)
         editor.setPrintMarginColumn(-10)
         editor.session.setMode(new Mode())
+
+        this.getStack()
     }
 
+    // 查询事件
     submit = () => {
-        console.log(editor.getValue())
+        this.props.form.validateFields((errors, values) => {
+            if (!!errors) {
+                return
+            }
+
+            if (!editor.getValue()) {
+                message.info('请输入查询语句')
+
+                return false
+            }
+
+            this.setState({loading: true})
+
+            this.getTable()
+        })
     }
 
+    // 清空事件
     clear = () => {
         editor.setValue('', -1)
     }
 
-    // 获取用户名
-    getUser = () => {
-        return fetch('/userinfo/', {
-                method: 'POST',
-                credentials: 'include'
+    // 获取分站
+    getStack = () => {
+        fetch('/ajax_get_stations/', {
+            credentials: 'include'
+        })
+        .then((res) => { return res.json() })
+        .then((data) => {
+            this.setState({
+                stations: data
             })
-            .then((res) => { return res.json() })
-            .then((data) => {
-                this.setState({
-                    username: data.username
+        })
+    }
+
+    // 数据获取
+    getTable = (params = {}) => {
+        fetch('/execute_sql/', {
+            method: 'POST',
+            credentials: 'include',
+            body: JSON.stringify({
+                station_id: this.props.form.getFieldValue('station'),
+                sql: editor.getValue(),
+                ...params
+            })
+        })
+        .then((res) => { return res.json() })
+        .then((data) => {
+            if (data.result && data.res.length) {
+                let arr = Object.keys(data.res[0]),
+                    header = []
+
+                arr.map((e, i) => {
+                    header.push({title: e, dataIndex: e})
                 })
-            })
+
+                const pagination = this.state.pagination
+
+                pagination.total = data.total
+
+                console.log(pagination)
+
+                this.setState({
+                    columns: header,
+                    data: data.res,
+                    loading: false,
+                    pagination
+                })
+            } else {
+                this.openNotification(data.msg)
+
+                this.setState({
+                    columns: initHeader,
+                    data: [],
+                    loading: false
+                })
+            }
+        })
+    }
+
+    // 分页操作
+    handleTableChange = (pagination) => {
+        const pager = this.state.pagination
+
+        pager.current = pagination.current
+
+        console.log(pagination)
+
+        this.setState({
+            pagination: pager
+        })
+
+        this.getTable({
+            results: 10,
+            page: pagination.current
+        })
+    }
+
+    // 信息提示
+    openNotification = (msg) => {
+        const args = {
+            message: '出错了',
+            description: msg,
+            duration: 0
+        }
+
+        notification.error(args)
     }
 
     // 退出
@@ -89,7 +173,15 @@ class App extends Component {
     }
 
     render() {
-        const { loading } = this.state
+        const { stations, loading, columns, data, pagination } = this.state
+
+        const { getFieldProps } = this.props.form
+
+        const stationProps = getFieldProps('station', {
+            rules: [
+                { required: true, type: 'number', message: '请选择分站' }
+            ]
+        })
 
         return(
             <div className="main">
@@ -98,31 +190,47 @@ class App extends Component {
                     extra={<a href="#" onClick={this.logout}>退出</a>} 
                     style={{ width: '70%', margin: '0 auto' }}
                 >
-                    <Form inline className="search-box">
+                    <Form inline className="search-box" form={this.props.form}>
                         <FormItem
                            label="分站"
+                           hasFeedback
                         >
                             <Select
                                 style={{ width: 200 }}
                                 placeholder="请选择"
+                                {...stationProps}
                             >   
-                                <Option value="1">分站名一</Option>
-                                <Option value="2">分站名二</Option>
-                                <Option value="3">分站名三</Option>
+                                {
+                                    stations.map((e, i) =>
+                                        <Option value={e.value} key={i}>{e.label}</Option>
+                                    )
+                                }
                             </Select>
                         </FormItem>
                     </Form>
-                    <div id="editor"></div>
+                    <div id="editor">
+{`select a.tablespace_name tablespace,
+(b.current_size-a.free_size)*100/b.max_size as used_pct,
+b.max_size - b.current_size + a.free_size as free_size
+from
+(select tablespace_name,sum(bytes/1024/1024) free_size from dba_free_space group by tablespace_name) a,
+(select tablespace_name,sum(decode(autoextensible,'NO',BYTES, MAXBYTES)/1024/1024) max_size,sum(bytes/1024/1024) current_size 
+from dba_data_files where status = 'AVAILABLE' and ONLINE_STATUS IN('ONLINE','SYSTEM') group by tablespace_name) b
+where a.tablespace_name=b.tablespace_name`}
+                    </div>
                     <div className="text-center mt20">
                         <Button type="primary" size="large" icon="search" loading={loading} onClick={this.submit}>查询</Button>
                         &nbsp;&nbsp;
                         <Button type="default" size="large" icon="reload" onClick={this.clear}>清空</Button>
                     </div>
-                    <Table className="mt20" columns={columns}
-                        dataSource={this.state.data}
-                        pagination={false}
-                        loading={this.state.loading}
+                    <Table 
+                        className="mt20" 
+                        columns={columns}
+                        dataSource={data}
+                        pagination={pagination}
+                        loading={loading}
                         size="small"
+                        onChange={this.handleTableChange}
                     />
                 </Card>
             </div>

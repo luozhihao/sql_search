@@ -8,6 +8,7 @@ import finalCreateStore from './src/store/configureStore'
 import reducer from './src/reducers'
   
 import './src/assets/css/main.less'
+import 'font-awesome/css/font-awesome.min.css' 
 
 const store = finalCreateStore(reducer)
 const history = syncHistoryWithStore(browserHistory, store)
